@@ -1,0 +1,1965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fleet Cross-Functional Audit System</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
+
+  <!-- TOP NAVBAR -->
+  <nav class="bg-slate-900 text-white shadow-md">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <span class="text-xl font-bold tracking-wide">Fleet Audit System</span>
+        <span id="role-badge" class="bg-blue-600 text-xs px-2.5 py-1 rounded-full font-semibold uppercase">Admin Mode</span>
+      </div>
+      <div class="flex items-center space-x-4">
+        <!-- Admin Notification Panel Icon -->
+        <button id="admin-notif-btn" onclick="showTab('audit-logs')" class="relative p-1.5 text-gray-300 hover:text-white transition focus:outline-none hidden" title="Pending Audit Reviews">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 01-6 0v-1m6 0H9"></path>
+          </svg>
+          <span id="nav-pending-count" class="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center hidden">0</span>
+        </button>
+
+        <span id="user-display" class="text-sm text-gray-300">Logged in as: <strong>Master Admin</strong></span>
+        <button onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1.5 rounded transition">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- AUTH / LOGIN CONTAINER -->
+  <div id="auth-container" class="max-w-md mx-auto mt-16 p-6 bg-white rounded-lg shadow-lg border border-gray-200">
+    <h2 class="text-2xl font-bold mb-4 text-center text-slate-800">System Access</h2>
+    
+    <!-- Role Selector Toggle -->
+    <div class="flex border-b mb-6">
+      <button id="btn-login-admin" onclick="switchLoginRole('admin')" class="w-1/2 py-2 text-center border-b-2 border-blue-600 font-semibold text-blue-600">Master Admin</button>
+      <button id="btn-login-auditor" onclick="switchLoginRole('auditor')" class="w-1/2 py-2 text-center border-b-2 border-transparent font-semibold text-gray-500 hover:text-gray-700">Auditor</button>
+    </div>
+
+    <!-- Master Admin Form -->
+    <form id="admin-login-form" onsubmit="handleAdminLogin(event)" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Admin Password</label>
+        <input type="password" id="admin-pass-input" class="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" required placeholder="Default: admin123">
+      </div>
+      <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-semibold transition">Login as Admin</button>
+    </form>
+
+    <!-- Auditor Form -->
+    <form id="auditor-login-form" onsubmit="handleAuditorLogin(event)" class="space-y-4 hidden">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Department</label>
+        <select id="login-aud-dept" onchange="updateLoginSubsections()" class="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" required></select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Sub-Section</label>
+        <select id="login-aud-subdept" onchange="updateAuditorDropdown()" class="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" required></select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Auditor Name</label>
+        <select id="login-aud-name" class="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" required></select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+        <input type="password" id="auditor-pass-input" class="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" required>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Unannounced Audit Date</label>
+        <input type="text" id="login-audit-date" class="w-full border bg-gray-100 text-gray-600 rounded px-3 py-2 text-sm" readonly>
+      </div>
+      <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded font-semibold transition">Start Auditor Session</button>
+    </form>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div id="app-container" class="max-w-7xl mx-auto px-4 py-6 hidden">
+
+    <!-- ADMIN NAVIGATION -->
+    <div id="admin-nav" class="flex flex-wrap gap-2 mb-6 border-b pb-3">
+      <button onclick="showTab('dashboard')" class="tab-btn bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold">Dashboard & Analytics</button>
+      <button onclick="showTab('audit-logs')" class="tab-btn bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm font-semibold relative">
+        Audit Reviews & Logs
+        <span id="tab-pending-badge" class="ml-1.5 bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold hidden">0</span>
+      </button>
+      <button onclick="showTab('master-file')" class="tab-btn bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm font-semibold">Master File</button>
+      <button onclick="showTab('checklist-master')" class="tab-btn bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm font-semibold">Checklist Master</button>
+      <button onclick="showTab('monthly-schedule')" class="tab-btn bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm font-semibold">Monthly Schedule</button>
+      <button onclick="showTab('findings-log')" class="tab-btn bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm font-semibold">Findings Log (CAPA)</button>
+    </div>
+
+    <!-- AUDITOR NAVIGATION -->
+    <div id="auditor-nav" class="flex flex-wrap gap-2 mb-6 border-b pb-3 hidden">
+      <button onclick="showTab('auditor-pending')" class="tab-btn bg-emerald-600 text-white px-4 py-2 rounded text-sm font-semibold">Pending Audits</button>
+      <button onclick="showTab('auditor-history')" class="tab-btn bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm font-semibold">Submitted Audits</button>
+    </div>
+
+    <!-- TAB 1: DASHBOARD & ANALYTICS (GRAPHS & CHARTS WITH INTERACTIVE SLICERS) -->
+    <div id="tab-dashboard" class="tab-content active space-y-6">
+      
+      <!-- INTERACTIVE SLICERS / FILTERS CONTROL PANEL -->
+      <div class="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-wrap gap-4 items-end justify-between">
+        <div class="flex flex-wrap gap-3 items-center text-xs">
+          <div>
+            <label class="block font-bold text-gray-600 mb-1">Target Department / Sub-Section</label>
+            <select id="dash-filter-target" onchange="applyDashboardFilters()" class="border rounded px-2.5 py-1.5 bg-gray-50 focus:bg-white text-xs font-medium border-gray-300 outline-none">
+              <option value="all">All Sub-Sections</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-600 mb-1">Year</label>
+            <select id="dash-filter-year" onchange="applyDashboardFilters()" class="border rounded px-2 py-1.5 bg-gray-50 focus:bg-white text-xs font-medium border-gray-300 outline-none">
+              <option value="all">All Years</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-600 mb-1">Quarter</label>
+            <select id="dash-filter-qtr" onchange="applyDashboardFilters()" class="border rounded px-2 py-1.5 bg-gray-50 focus:bg-white text-xs font-medium border-gray-300 outline-none">
+              <option value="all">All Quarters</option>
+              <option value="Q1">Q1 (Jan - Mar)</option>
+              <option value="Q2">Q2 (Apr - Jun)</option>
+              <option value="Q3">Q3 (Jul - Sep)</option>
+              <option value="Q4">Q4 (Oct - Dec)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-600 mb-1">Month</label>
+            <select id="dash-filter-month" onchange="applyDashboardFilters()" class="border rounded px-2 py-1.5 bg-gray-50 focus:bg-white text-xs font-medium border-gray-300 outline-none">
+              <option value="all">All Months</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-600 mb-1">Auditor Name</label>
+            <select id="dash-filter-auditor" onchange="applyDashboardFilters()" class="border rounded px-2.5 py-1.5 bg-gray-50 focus:bg-white text-xs font-medium border-gray-300 outline-none">
+              <option value="all">All Auditors</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <span id="active-filter-indicator" class="text-[11px] text-blue-600 font-semibold hidden">Filtered View Active</span>
+          <button onclick="resetDashboardFilters()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs px-3.5 py-2 rounded transition shadow-sm">
+            Reset Filters
+          </button>
+        </div>
+      </div>
+
+      <!-- Summary Metric Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-gray-500 uppercase font-semibold">Approved Audits</p>
+            <h4 id="dash-total-approved" class="text-2xl font-bold text-slate-800">0</h4>
+          </div>
+          <div class="p-3 bg-emerald-100 rounded-full text-emerald-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-gray-500 uppercase font-semibold">Avg System Score</p>
+            <h4 id="dash-avg-score" class="text-2xl font-bold text-blue-600">0%</h4>
+          </div>
+          <div class="p-3 bg-blue-100 rounded-full text-blue-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-gray-500 uppercase font-semibold">Pending Reviews</p>
+            <h4 id="dash-pending-count" class="text-2xl font-bold text-amber-500">0</h4>
+          </div>
+          <div class="p-3 bg-amber-100 rounded-full text-amber-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 flex items-center justify-between">
+          <div>
+            <p class="text-xs text-gray-500 uppercase font-semibold">Critical Findings</p>
+            <h4 id="dash-critical-count" class="text-2xl font-bold text-red-600">0</h4>
+          </div>
+          <div class="p-3 bg-red-100 rounded-full text-red-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Interactive Charts Layout -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 cursor-pointer" title="Click bar to filter by sub-section">
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="font-bold text-gray-700 text-sm uppercase">Score by Sub-Section</h3>
+            <span class="text-[10px] text-gray-400">Click bar to filter</span>
+          </div>
+          <canvas id="barScoreChart" class="w-full h-56"></canvas>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 cursor-pointer" title="Click slice to filter by severity">
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="font-bold text-gray-700 text-sm uppercase">Findings by Severity</h3>
+            <span class="text-[10px] text-gray-400">Click slice to filter</span>
+          </div>
+          <canvas id="doughnutSeverityChart" class="w-full h-56"></canvas>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="font-bold text-gray-700 text-sm uppercase">Score Trends Over Time</h3>
+            <span class="text-[10px] text-gray-400">Interactive timeline</span>
+          </div>
+          <canvas id="lineTrendChart" class="w-full h-56"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: AUDIT REVIEWS & LOGS -->
+    <div id="tab-audit-logs" class="tab-content space-y-6">
+
+      <!-- Pending Audit Reviews Table -->
+      <div class="bg-white rounded-lg shadow border border-amber-300 overflow-hidden">
+        <div class="px-6 py-4 border-b border-amber-200 bg-amber-50 flex justify-between items-center">
+          <h3 class="font-bold text-amber-900">Audits Pending Review</h3>
+          <span id="pending-review-count" class="bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">0</span>
+        </div>
+        <p class="text-xs text-gray-500 px-6 pt-3">Newly submitted audits wait here until you approve them. Approved audits are recorded on the dashboard and findings log; returned audits go back to the auditor to redo.</p>
+        <div class="overflow-x-auto p-4">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-100 text-slate-700 uppercase text-xs">
+              <tr>
+                <th class="p-3">Month</th>
+                <th class="p-3">Target Sub-Section</th>
+                <th class="p-3">Auditor</th>
+                <th class="p-3">Score %</th>
+                <th class="p-3">Action</th>
+              </tr>
+            </thead>
+            <tbody id="pending-review-tbl" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Completed Audits Log Table -->
+      <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-slate-50">
+          <h3 class="font-bold text-slate-800">Completed Audits Log</h3>
+        </div>
+        <div class="overflow-x-auto p-4">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-100 text-slate-700 uppercase text-xs">
+              <tr>
+                <th class="p-3">Month</th>
+                <th class="p-3">Date Completed</th>
+                <th class="p-3">Auditing Sub-Section</th>
+                <th class="p-3">Target Sub-Section</th>
+                <th class="p-3">Auditor</th>
+                <th class="p-3">Score %</th>
+                <th class="p-3">Action</th>
+              </tr>
+            </thead>
+            <tbody id="completed-audits-tbl" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: MASTER FILE (ADMIN) -->
+    <div id="tab-master-file" class="tab-content space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Manage Auditors -->
+        <div class="bg-white p-5 rounded-lg shadow border border-gray-200">
+          <h3 class="font-bold text-slate-800 mb-4 pb-2 border-b">Auditors Master Directory</h3>
+          <form onsubmit="addAuditor(event)" class="space-y-3 mb-4">
+            <input type="hidden" id="m-aud-edit-id" value="">
+            <div class="grid grid-cols-2 gap-2">
+              <select id="m-aud-dept" onchange="updateMasterSubsections('m-aud-dept', 'm-aud-subdept')" class="border rounded px-2 py-1.5 text-sm" required></select>
+              <select id="m-aud-subdept" class="border rounded px-2 py-1.5 text-sm" required></select>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input type="text" id="m-aud-name" placeholder="Auditor Name" class="border rounded px-2 py-1.5 text-sm" required>
+              <input type="password" id="m-aud-pass" placeholder="Password" class="border rounded px-2 py-1.5 text-sm" required>
+            </div>
+            <div class="flex gap-2">
+              <button type="submit" id="m-aud-submit-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded text-sm font-semibold">Add Auditor</button>
+              <button type="button" id="m-aud-cancel-btn" onclick="cancelAuditorEdit()" class="hidden px-4 bg-gray-300 hover:bg-gray-400 text-gray-800 py-1.5 rounded text-sm font-semibold">Cancel</button>
+            </div>
+          </form>
+          <div class="max-h-60 overflow-y-auto">
+            <table class="w-full text-left text-xs border">
+              <thead class="bg-slate-100">
+                <tr><th class="p-2 border">Sub-Section</th><th class="p-2 border">Name</th><th class="p-2 border w-24">Action</th></tr>
+              </thead>
+              <tbody id="m-auditors-list"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Password Change -->
+        <div class="bg-white p-5 rounded-lg shadow border border-gray-200">
+          <h3 class="font-bold text-slate-800 mb-3 border-b pb-2">Update Admin Master Password</h3>
+          <form onsubmit="updateAdminPassword(event)" class="space-y-3">
+            <input type="password" id="m-new-admin-pass" placeholder="New Admin Password" class="w-full border rounded px-3 py-1.5 text-sm" required>
+            <button type="submit" class="bg-slate-800 text-white px-4 py-1.5 rounded text-sm font-semibold hover:bg-slate-900">Save Password</button>
+          </form>
+        </div>
+
+        <!-- Danger Zone: Reset Audit Data -->
+        <div class="bg-white p-5 rounded-lg shadow border-2 border-red-200 md:col-span-2">
+          <h3 class="font-bold text-red-700 mb-1 border-b border-red-100 pb-2">Danger Zone — Reset Audit Data</h3>
+          <p class="text-xs text-gray-500 mt-2 mb-4">Wipes every Monthly Schedule and every Audit record (Completed, Pending Review, and Returned) along with their CAPA notes. Your Auditors Master Directory, Checklist Master, and admin password are <strong>not</strong> affected.</p>
+          <button type="button" onclick="resetAuditData()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded text-sm font-semibold">Delete All Audit Data</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 4: CHECKLIST MASTER (ADMIN) -->
+    <div id="tab-checklist-master" class="tab-content space-y-6">
+      <div class="bg-white p-5 rounded-lg shadow border border-gray-200">
+        <h3 class="font-bold text-slate-800 mb-2">Audit Checkpoints & Department Mapping</h3>
+        <p class="text-xs text-gray-500 mb-4">Define checkpoints and select which departments they apply to. When a schedule is created, applicable points automatically load for that department.</p>
+
+        <form onsubmit="addCheckpoint(event)" class="space-y-4 mb-6 bg-slate-50 p-4 rounded border">
+          <input type="hidden" id="chk-edit-id" value="">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input type="text" id="chk-cat" placeholder="Category (e.g. Documentation, Vehicle Inspection)" class="border rounded px-3 py-1.5 text-sm" required>
+            <input type="text" id="chk-point" placeholder="Audit Checkpoint Description" class="border rounded px-3 py-1.5 text-sm md:col-span-2" required>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Applicable Departments (Select Multiple):</label>
+            <div id="chk-dept-checkboxes" class="flex flex-wrap gap-4 text-xs bg-white p-3 border rounded"></div>
+          </div>
+
+          <div class="flex justify-between items-center pt-2">
+            <div class="flex items-center space-x-2">
+              <label class="text-xs font-semibold text-gray-700">Weight %:</label>
+              <input type="number" id="chk-weight" min="1" max="100" value="25" class="w-20 border rounded px-2 py-1 text-sm" required>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" id="chk-cancel-btn" onclick="cancelCheckpointEdit()" class="hidden px-4 bg-gray-300 hover:bg-gray-400 text-gray-800 py-1.5 rounded text-sm font-semibold">Cancel</button>
+              <button type="submit" id="chk-submit-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-1.5 rounded text-sm font-semibold">Add Checkpoint</button>
+            </div>
+          </div>
+        </form>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm border">
+            <thead class="bg-slate-100 uppercase text-xs text-slate-700">
+              <tr>
+                <th class="p-3 border">Category</th>
+                <th class="p-3 border">Checkpoint Description</th>
+                <th class="p-3 border">Applicable Departments</th>
+                <th class="p-3 border w-24">Weight %</th>
+                <th class="p-3 border w-20">Action</th>
+              </tr>
+            </thead>
+            <tbody id="checklist-tbl" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: MONTHLY AUDIT SCHEDULE (ADMIN) -->
+    <div id="tab-monthly-schedule" class="tab-content space-y-6">
+      <div class="bg-white p-5 rounded-lg shadow border border-gray-200">
+        <h3 class="font-bold text-slate-800 mb-1">Create Monthly Audit Schedule</h3>
+        <p class="text-xs text-gray-500 mb-4">Select the target sub-section, auditing sub-section, auditor, and month. Applicable department checklist points will auto-populate and can be verified before saving.</p>
+
+        <form onsubmit="createMonthlySchedule(event)" class="space-y-4 bg-slate-50 p-4 rounded border">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">Schedule Month</label>
+              <input type="month" id="sched-month" class="w-full border rounded px-3 py-1.5 text-sm bg-white" required>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">Target Sub-Section (To Audit)</label>
+              <select id="sched-target-sub" onchange="onTargetSubChange()" class="w-full border rounded px-3 py-1.5 text-sm bg-white" required></select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">Auditing Sub-Section</label>
+              <select id="sched-auditing-sub" onchange="updateSchedAuditors()" class="w-full border rounded px-3 py-1.5 text-sm bg-white" required></select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">Assigned Auditor</label>
+              <select id="sched-auditor-select" class="w-full border rounded px-3 py-1.5 text-sm bg-white" required></select>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-xs font-semibold text-gray-700">Auto-Matched Checkpoints for Target Department:</label>
+              <span id="sched-weight-display" class="text-xs font-bold text-blue-600">Total Weight: 0%</span>
+            </div>
+            <div id="sched-checkpoints-list" class="max-h-48 overflow-y-auto border rounded p-3 text-xs space-y-1 bg-white">
+              <p class="text-gray-400 italic">Select a Target Sub-Section above to auto-load checklist points...</p>
+            </div>
+          </div>
+
+          <input type="hidden" id="sched-edit-id" value="">
+          <div class="flex gap-2">
+            <button type="submit" id="sched-submit-btn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded font-semibold text-sm transition">Save Monthly Audit Schedule</button>
+            <button type="button" id="sched-cancel-btn" onclick="cancelScheduleEdit()" class="hidden bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded font-semibold text-sm transition">Cancel Edit</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- SCHEDULE HISTORY -->
+      <div class="bg-white p-5 rounded-lg shadow border border-gray-200">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="font-bold text-slate-800">Audit Schedule Log / History</h3>
+          <button onclick="clearScheduleFilters()" class="text-xs text-blue-600 font-semibold hover:underline">Clear Filters</button>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 bg-slate-50 p-3 rounded border">
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Month</label>
+            <select id="filter-sched-month" onchange="renderScheduleHistory()" class="w-full border rounded px-2 py-1.5 text-xs bg-white">
+              <option value="">All Months</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Target Sub-Section</label>
+            <select id="filter-sched-target" onchange="renderScheduleHistory()" class="w-full border rounded px-2 py-1.5 text-xs bg-white">
+              <option value="">All Target Sub-Sections</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Auditing Sub-Section</label>
+            <select id="filter-sched-auditing" onchange="renderScheduleHistory()" class="w-full border rounded px-2 py-1.5 text-xs bg-white">
+              <option value="">All Auditing Sub-Sections</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Auditor</label>
+            <select id="filter-sched-auditor" onchange="renderScheduleHistory()" class="w-full border rounded px-2 py-1.5 text-xs bg-white">
+              <option value="">All Auditors</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border">
+            <thead class="bg-slate-100 uppercase text-slate-700">
+              <tr>
+                <th class="p-2 border">Month</th>
+                <th class="p-2 border">Target Sub-Section</th>
+                <th class="p-2 border">Auditing Sub-Section</th>
+                <th class="p-2 border">Auditor</th>
+                <th class="p-2 border">Checkpoints</th>
+                <th class="p-2 border">Status</th>
+                <th class="p-2 border">Action</th>
+              </tr>
+            </thead>
+            <tbody id="sched-history-tbl" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: FINDINGS LOG (CAPA) (ADMIN) -->
+    <div id="tab-findings-log" class="tab-content space-y-6">
+      <div class="bg-white p-5 rounded-lg shadow border border-gray-200">
+        <h3 class="font-bold text-slate-800 mb-4">Major & Critical Findings Log (CAPA Tracking)</h3>
+        
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border">
+            <thead class="bg-slate-100 uppercase text-slate-700">
+              <tr>
+                <th class="p-2 border">Sub-Section</th>
+                <th class="p-2 border">Auditor</th>
+                <th class="p-2 border">Checkpoint & Note</th>
+                <th class="p-2 border">Severity</th>
+                <th class="p-2 border">Evidence</th>
+                <th class="p-2 border">CAPA Owner</th>
+                <th class="p-2 border">Due Date</th>
+                <th class="p-2 border">Status</th>
+                <th class="p-2 border">Action</th>
+              </tr>
+            </thead>
+            <tbody id="findings-tbl" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: AUDITOR PENDING (AUDITOR MODE) -->
+    <div id="tab-auditor-pending" class="tab-content space-y-6">
+      <div class="bg-white p-5 rounded-lg shadow border border-gray-200">
+        <h3 class="font-bold text-slate-800 mb-4">Your Active Unannounced Audits</h3>
+        <div id="auditor-pending-list" class="space-y-4"></div>
+      </div>
+    </div>
+
+    <!-- TAB: AUDITOR SCORING FORM (AUDITOR MODE) -->
+    <div id="tab-auditor-exec" class="tab-content space-y-6">
+      <div class="bg-white p-5 rounded-lg shadow border border-gray-200">
+        <div class="border-b pb-3 mb-4 flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-lg text-slate-800" id="exec-title">Execute Audit</h3>
+            <p class="text-xs text-gray-500" id="exec-subtitle"></p>
+          </div>
+          <button onclick="showTab('auditor-pending')" class="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">Back</button>
+        </div>
+
+        <form onsubmit="submitAuditExecution(event)" class="space-y-6">
+          <input type="hidden" id="exec-schedule-id">
+          
+          <div id="exec-checkpoints-container" class="space-y-6"></div>
+
+          <div class="pt-4 border-t">
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded font-bold text-base transition">Complete & Submit Audit</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- TAB: AUDITOR HISTORY (AUDITOR MODE) -->
+    <div id="tab-auditor-history" class="tab-content space-y-6">
+      <div class="bg-white p-5 rounded-lg shadow border border-gray-200">
+        <h3 class="font-bold text-slate-800 mb-4">My Submitted Audits History</h3>
+        <div id="auditor-history-list" class="space-y-3"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- AUDIT DETAIL MODAL -->
+  <div id="detail-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
+      <div class="flex justify-between items-center border-b pb-3 mb-4">
+        <h3 class="font-bold text-lg text-slate-800" id="modal-title">Audit Finding Details</h3>
+        <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700 font-bold">✕</button>
+      </div>
+      <div id="modal-content" class="space-y-4 text-sm"></div>
+    </div>
+  </div>
+
+  <script>
+    // --- GLOBAL DATA STRUCTURES ---
+    const DEPARTMENTS = {
+      "Leasing": ["Tender Leasing", "Corporate Leasing"],
+      "Spot Rental": ["Spot Rental", "Individual Leasing"],
+      "Operation": ["Shuwaikh Dispatch", "Ahmadi Dispatch"],
+      "After Sales": ["Ahmadi Bodyshop", "Ahmadi Workshop", "Shuwaikh Workshop", "Shuwaikh Bodyshop"],
+      "Operation Performance & Reporting": ["Shuwaikh Fleet Control", "Ahmadi Fleet Control", "MOI"]
+    };
+
+    let currentUser = null; // { role: 'admin' | 'auditor', name, dept, subdept }
+    let selectedSeverityFilter = 'all'; // Extra filter state from Doughnut chart click
+
+    // Helper to find parent department from sub-section
+    function getParentDept(subdept) {
+      for (const [dept, subs] of Object.entries(DEPARTMENTS)) {
+        if (subs.includes(subdept)) return dept;
+      }
+      return "";
+    }
+
+    // Initial Storage Setup
+    function initStorage() {
+      if (!localStorage.getItem('fa_admin_pass')) {
+        localStorage.setItem('fa_admin_pass', 'admin123');
+      }
+      if (!localStorage.getItem('fa_auditors')) {
+        localStorage.setItem('fa_auditors', JSON.stringify([
+          { id: '1', name: 'Ali Hassan', dept: 'Operation Performance & Reporting', subdept: 'Shuwaikh Fleet Control', pass: '1234' },
+          { id: '2', name: 'Fatima Al-Mansoor', dept: 'Leasing', subdept: 'Corporate Leasing', pass: '1234' }
+        ]));
+      }
+      if (!localStorage.getItem('fa_checkpoints')) {
+        localStorage.setItem('fa_checkpoints', JSON.stringify([
+          { id: '1', cat: 'Vehicle Condition', point: 'Interior Cleanliness & Body Damage Check', depts: ['After Sales', 'Spot Rental', 'Operation'], weight: 25 },
+          { id: '2', cat: 'Documentation', point: 'Valid Registration & MOI Permits Verification', depts: ['Leasing', 'Spot Rental', 'Operation Performance & Reporting'], weight: 25 },
+          { id: '3', cat: 'Safety Protocol', point: 'Emergency Kit & Fire Extinguisher Expiry Check', depts: ['After Sales', 'Operation'], weight: 25 },
+          { id: '4', cat: 'Operational Log', point: 'Key Cabinet & Fuel Card Reconciliation', depts: ['Operation Performance & Reporting', 'Leasing', 'Spot Rental', 'Operation', 'After Sales'], weight: 25 }
+        ]));
+      }
+      if (!localStorage.getItem('fa_schedules')) {
+        localStorage.setItem('fa_schedules', JSON.stringify([]));
+      }
+      if (!localStorage.getItem('fa_audits')) {
+        localStorage.setItem('fa_audits', JSON.stringify([]));
+      }
+    }
+
+    // --- HELPER GETTERS & SETTERS ---
+    const getStorage = (key) => JSON.parse(localStorage.getItem(key) || '[]');
+    const setStorage = (key, val) => localStorage.setItem(key, JSON.stringify(val));
+
+    // --- INITIALIZATION ---
+    window.onload = function() {
+      initStorage();
+      populateDeptDropdowns();
+      setTodayAuditDate();
+    };
+
+    function setTodayAuditDate() {
+      const today = new Date().toISOString().split('T')[0];
+      const dateEl = document.getElementById('login-audit-date');
+      if (dateEl) dateEl.value = today;
+    }
+
+    // --- AUTHENTICATION LOGIC ---
+    function switchLoginRole(role) {
+      const adminBtn = document.getElementById('btn-login-admin');
+      const audBtn = document.getElementById('btn-login-auditor');
+      const adminForm = document.getElementById('admin-login-form');
+      const audForm = document.getElementById('auditor-login-form');
+
+      if (role === 'admin') {
+        adminBtn.className = "w-1/2 py-2 text-center border-b-2 border-blue-600 font-semibold text-blue-600";
+        audBtn.className = "w-1/2 py-2 text-center border-b-2 border-transparent font-semibold text-gray-500 hover:text-gray-700";
+        adminForm.classList.remove('hidden');
+        audForm.classList.add('hidden');
+      } else {
+        audBtn.className = "w-1/2 py-2 text-center border-b-2 border-emerald-600 font-semibold text-emerald-600";
+        adminBtn.className = "w-1/2 py-2 text-center border-b-2 border-transparent font-semibold text-gray-500 hover:text-gray-700";
+        audForm.classList.remove('hidden');
+        adminForm.classList.add('hidden');
+      }
+    }
+
+    function populateDeptDropdowns() {
+      const depts = Object.keys(DEPARTMENTS);
+      
+      const loginDeptSelect = document.getElementById('login-aud-dept');
+      loginDeptSelect.innerHTML = depts.map(d => `<option value="${d}">${d}</option>`).join('');
+      updateLoginSubsections();
+
+      const mAudDept = document.getElementById('m-aud-dept');
+      mAudDept.innerHTML = depts.map(d => `<option value="${d}">${d}</option>`).join('');
+      updateMasterSubsections('m-aud-dept', 'm-aud-subdept');
+
+      renderChecklistDeptCheckboxes();
+      populateSubsectionsGlobal();
+    }
+
+    function updateLoginSubsections() {
+      const dept = document.getElementById('login-aud-dept').value;
+      const subSelect = document.getElementById('login-aud-subdept');
+      const subs = DEPARTMENTS[dept] || [];
+      subSelect.innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('');
+      updateAuditorDropdown();
+    }
+
+    function updateAuditorDropdown() {
+      const subdept = document.getElementById('login-aud-subdept').value;
+      const auditors = getStorage('fa_auditors').filter(a => a.subdept === subdept);
+      const nameSelect = document.getElementById('login-aud-name');
+      if (auditors.length === 0) {
+        nameSelect.innerHTML = `<option value="">No registered auditor</option>`;
+      } else {
+        nameSelect.innerHTML = auditors.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+      }
+    }
+
+    function updateMasterSubsections(deptId, subId) {
+      const dept = document.getElementById(deptId).value;
+      const subSelect = document.getElementById(subId);
+      const subs = DEPARTMENTS[dept] || [];
+      subSelect.innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('');
+    }
+
+    function renderChecklistDeptCheckboxes() {
+      const container = document.getElementById('chk-dept-checkboxes');
+      const depts = Object.keys(DEPARTMENTS);
+      container.innerHTML = depts.map(d => `
+        <label class="flex items-center space-x-1.5 cursor-pointer">
+          <input type="checkbox" name="chk-dept-opt" value="${d}" class="rounded">
+          <span>${d}</span>
+        </label>
+      `).join('');
+    }
+
+    function populateSubsectionsGlobal() {
+      let allSubs = [];
+      Object.values(DEPARTMENTS).forEach(arr => allSubs = allSubs.concat(arr));
+
+      const schedTarget = document.getElementById('sched-target-sub');
+      const schedAuditing = document.getElementById('sched-auditing-sub');
+
+      const options = allSubs.map(s => `<option value="${s}">${s}</option>`).join('');
+      schedTarget.innerHTML = options;
+      schedAuditing.innerHTML = options;
+
+      // Set default current month YYYY-MM
+      const now = new Date();
+      const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      document.getElementById('sched-month').value = monthStr;
+
+      onTargetSubChange();
+      updateSchedAuditors();
+    }
+
+    function handleAdminLogin(e) {
+      e.preventDefault();
+      const pass = document.getElementById('admin-pass-input').value;
+      if (pass === localStorage.getItem('fa_admin_pass')) {
+        currentUser = { role: 'admin', name: 'Master Admin' };
+        enterApp();
+      } else {
+        alert('Invalid Admin Password!');
+      }
+    }
+
+    function handleAuditorLogin(e) {
+      e.preventDefault();
+      const dept = document.getElementById('login-aud-dept').value;
+      const subdept = document.getElementById('login-aud-subdept').value;
+      const name = document.getElementById('login-aud-name').value;
+      const pass = document.getElementById('auditor-pass-input').value;
+
+      const auditor = getStorage('fa_auditors').find(a => a.subdept === subdept && a.name === name && a.pass === pass);
+      if (auditor) {
+        currentUser = { role: 'auditor', name: auditor.name, dept, subdept };
+        enterApp();
+      } else {
+        alert('Invalid Auditor Credentials!');
+      }
+    }
+
+    function enterApp() {
+      document.getElementById('auth-container').classList.add('hidden');
+      document.getElementById('app-container').classList.remove('hidden');
+
+      const roleBadge = document.getElementById('role-badge');
+      const userDisplay = document.getElementById('user-display');
+      const adminNav = document.getElementById('admin-nav');
+      const auditorNav = document.getElementById('auditor-nav');
+      const adminNotifBtn = document.getElementById('admin-notif-btn');
+
+      if (currentUser.role === 'admin') {
+        roleBadge.textContent = 'Master Admin';
+        roleBadge.className = 'bg-blue-600 text-xs px-2.5 py-1 rounded-full font-semibold uppercase';
+        userDisplay.innerHTML = `Logged in as: <strong>Master Admin</strong>`;
+        adminNav.classList.remove('hidden');
+        auditorNav.classList.add('hidden');
+        adminNotifBtn.classList.remove('hidden');
+        updateNotificationBadge();
+        showTab('dashboard');
+      } else {
+        roleBadge.textContent = 'Auditor Mode';
+        roleBadge.className = 'bg-emerald-600 text-xs px-2.5 py-1 rounded-full font-semibold uppercase';
+        userDisplay.innerHTML = `Logged in: <strong>${currentUser.name}</strong> (${currentUser.subdept})`;
+        adminNav.classList.add('hidden');
+        auditorNav.classList.remove('hidden');
+        adminNotifBtn.classList.add('hidden');
+        showTab('auditor-pending');
+      }
+    }
+
+    function logout() {
+      currentUser = null;
+      document.getElementById('app-container').classList.add('hidden');
+      document.getElementById('auth-container').classList.remove('hidden');
+      document.getElementById('admin-pass-input').value = '';
+      document.getElementById('auditor-pass-input').value = '';
+    }
+
+    function updateNotificationBadge() {
+      const pendingCount = getStorage('fa_audits').filter(a => a.reviewStatus === 'Pending Review').length;
+      
+      const navBadge = document.getElementById('nav-pending-count');
+      const tabBadge = document.getElementById('tab-pending-badge');
+
+      if (pendingCount > 0) {
+        navBadge.textContent = pendingCount;
+        navBadge.classList.remove('hidden');
+        tabBadge.textContent = pendingCount;
+        tabBadge.classList.remove('hidden');
+      } else {
+        navBadge.classList.add('hidden');
+        tabBadge.classList.add('hidden');
+      }
+    }
+
+    // --- TAB NAVIGATION ---
+    function showTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600', 'bg-emerald-600', 'text-white');
+        btn.classList.add('bg-gray-200', 'text-gray-700');
+      });
+
+      const activeTab = document.getElementById('tab-' + tabId);
+      if (activeTab) activeTab.classList.add('active');
+
+      // Refresh data on view
+      if (tabId === 'dashboard') { populateDashboardFilterDropdowns(); renderDashboard(); }
+      if (tabId === 'audit-logs') { renderPendingReviews(); renderCompletedAuditsTable(); }
+      if (tabId === 'master-file') renderMasterLists();
+      if (tabId === 'checklist-master') renderChecklistMaster();
+      if (tabId === 'monthly-schedule') renderMonthlyScheduleTab();
+      if (tabId === 'findings-log') renderFindingsLog();
+      if (tabId === 'auditor-pending') renderAuditorPending();
+      if (tabId === 'auditor-history') renderAuditorHistory();
+    }
+
+    // --- MASTER FILE CONTROLLER ---
+    function addAuditor(e) {
+      e.preventDefault();
+      const dept = document.getElementById('m-aud-dept').value;
+      const subdept = document.getElementById('m-aud-subdept').value;
+      const name = document.getElementById('m-aud-name').value;
+      const pass = document.getElementById('m-aud-pass').value;
+      const editId = document.getElementById('m-aud-edit-id').value;
+
+      const auditors = getStorage('fa_auditors');
+      if (editId) {
+        const idx = auditors.findIndex(a => a.id === editId);
+        if (idx !== -1) auditors[idx] = { ...auditors[idx], dept, subdept, name, pass };
+      } else {
+        auditors.push({ id: Date.now().toString(), dept, subdept, name, pass });
+      }
+      setStorage('fa_auditors', auditors);
+      e.target.reset();
+      cancelAuditorEdit();
+      updateMasterSubsections('m-aud-dept', 'm-aud-subdept');
+      renderMasterLists();
+      populateDeptDropdowns();
+    }
+
+    function editAuditor(id) {
+      const auditor = getStorage('fa_auditors').find(a => a.id === id);
+      if (!auditor) return;
+
+      document.getElementById('m-aud-edit-id').value = auditor.id;
+      document.getElementById('m-aud-dept').value = auditor.dept;
+      updateMasterSubsections('m-aud-dept', 'm-aud-subdept');
+      document.getElementById('m-aud-subdept').value = auditor.subdept;
+      document.getElementById('m-aud-name').value = auditor.name;
+      document.getElementById('m-aud-pass').value = auditor.pass;
+
+      document.getElementById('m-aud-submit-btn').textContent = 'Update Auditor';
+      document.getElementById('m-aud-submit-btn').className = 'flex-1 bg-amber-600 hover:bg-amber-700 text-white py-1.5 rounded text-sm font-semibold';
+      document.getElementById('m-aud-cancel-btn').classList.remove('hidden');
+    }
+
+    function cancelAuditorEdit() {
+      document.getElementById('m-aud-edit-id').value = '';
+      document.getElementById('m-aud-submit-btn').textContent = 'Add Auditor';
+      document.getElementById('m-aud-submit-btn').className = 'flex-1 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded text-sm font-semibold';
+      document.getElementById('m-aud-cancel-btn').classList.add('hidden');
+      document.getElementById('m-aud-name').value = '';
+      document.getElementById('m-aud-pass').value = '';
+    }
+
+    function removeAuditor(id) {
+      let auditors = getStorage('fa_auditors').filter(a => a.id !== id);
+      setStorage('fa_auditors', auditors);
+      renderMasterLists();
+    }
+
+    function updateAdminPassword(e) {
+      e.preventDefault();
+      const newPass = document.getElementById('m-new-admin-pass').value;
+      localStorage.setItem('fa_admin_pass', newPass);
+      alert('Admin password updated successfully!');
+      e.target.reset();
+    }
+
+    function resetAuditData() {
+      const confirmed = confirm(
+        'This will permanently delete ALL Monthly Schedules and ALL Audit records ' +
+        '(Completed, Pending Review, and Returned) plus their CAPA notes.\n\n' +
+        'Auditors, Checklist Master, and the admin password will be kept.\n\n' +
+        'This cannot be undone. Continue?'
+      );
+      if (!confirmed) return;
+
+      setStorage('fa_schedules', []);
+      setStorage('fa_audits', []);
+
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('capa_'))
+        .forEach(k => localStorage.removeItem(k));
+
+      alert('All audit data has been cleared. Starting fresh.');
+
+      updateNotificationBadge();
+      renderPendingReviews();
+      populateDashboardFilterDropdowns();
+      renderDashboard();
+      renderMonthlyScheduleTab();
+      renderFindingsLog();
+    }
+
+    function renderMasterLists() {
+      const auditors = getStorage('fa_auditors');
+      document.getElementById('m-auditors-list').innerHTML = auditors.map(a => `
+        <tr>
+          <td class="p-2 border">${a.subdept}</td>
+          <td class="p-2 border font-medium">${a.name}</td>
+          <td class="p-2 border space-x-2">
+            <button onclick="editAuditor('${a.id}')" class="text-blue-600 font-semibold">Edit</button>
+            <button onclick="removeAuditor('${a.id}')" class="text-red-600 font-semibold">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // --- CHECKLIST MASTER CONTROLLER ---
+    function addCheckpoint(e) {
+      e.preventDefault();
+      const cat = document.getElementById('chk-cat').value;
+      const point = document.getElementById('chk-point').value;
+      const weight = parseInt(document.getElementById('chk-weight').value);
+      const editId = document.getElementById('chk-edit-id').value;
+
+      const selectedDepts = Array.from(document.querySelectorAll('input[name="chk-dept-opt"]:checked')).map(cb => cb.value);
+
+      if (selectedDepts.length === 0) {
+        alert('Please select at least one applicable department for this checkpoint!');
+        return;
+      }
+
+      const checkpoints = getStorage('fa_checkpoints');
+      if (editId) {
+        const idx = checkpoints.findIndex(c => c.id === editId);
+        if (idx !== -1) checkpoints[idx] = { ...checkpoints[idx], cat, point, depts: selectedDepts, weight };
+      } else {
+        checkpoints.push({ id: Date.now().toString(), cat, point, depts: selectedDepts, weight });
+      }
+      setStorage('fa_checkpoints', checkpoints);
+
+      e.target.reset();
+      cancelCheckpointEdit();
+      renderChecklistDeptCheckboxes();
+      renderChecklistMaster();
+    }
+
+    function editCheckpoint(id) {
+      const checkpoint = getStorage('fa_checkpoints').find(c => c.id === id);
+      if (!checkpoint) return;
+
+      document.getElementById('chk-edit-id').value = checkpoint.id;
+      document.getElementById('chk-cat').value = checkpoint.cat;
+      document.getElementById('chk-point').value = checkpoint.point;
+      document.getElementById('chk-weight').value = checkpoint.weight;
+
+      renderChecklistDeptCheckboxes();
+      document.querySelectorAll('input[name="chk-dept-opt"]').forEach(cb => {
+        cb.checked = (checkpoint.depts || []).includes(cb.value);
+      });
+
+      document.getElementById('chk-submit-btn').textContent = 'Update Checkpoint';
+      document.getElementById('chk-submit-btn').className = 'bg-amber-600 hover:bg-amber-700 text-white px-5 py-1.5 rounded text-sm font-semibold';
+      document.getElementById('chk-cancel-btn').classList.remove('hidden');
+    }
+
+    function cancelCheckpointEdit() {
+      document.getElementById('chk-edit-id').value = '';
+      document.getElementById('chk-submit-btn').textContent = 'Add Checkpoint';
+      document.getElementById('chk-submit-btn').className = 'bg-blue-600 hover:bg-blue-700 text-white px-5 py-1.5 rounded text-sm font-semibold';
+      document.getElementById('chk-cancel-btn').classList.add('hidden');
+      document.getElementById('chk-cat').value = '';
+      document.getElementById('chk-point').value = '';
+      document.getElementById('chk-weight').value = '25';
+      renderChecklistDeptCheckboxes();
+    }
+
+    function removeCheckpoint(id) {
+      let checkpoints = getStorage('fa_checkpoints').filter(c => c.id !== id);
+      setStorage('fa_checkpoints', checkpoints);
+      renderChecklistMaster();
+    }
+
+    function renderChecklistMaster() {
+      const checkpoints = getStorage('fa_checkpoints');
+      document.getElementById('checklist-tbl').innerHTML = checkpoints.map(c => `
+        <tr>
+          <td class="p-3 border font-semibold text-gray-700">${c.cat}</td>
+          <td class="p-3 border">${c.point}</td>
+          <td class="p-3 border">
+            <div class="flex flex-wrap gap-1">
+              ${(c.depts || []).map(d => `<span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-medium">${d}</span>`).join('')}
+            </div>
+          </td>
+          <td class="p-3 border font-bold text-blue-600">${c.weight}%</td>
+          <td class="p-3 border space-x-2">
+            <button onclick="editCheckpoint('${c.id}')" class="text-blue-600 font-semibold text-xs">Edit</button>
+            <button onclick="removeCheckpoint('${c.id}')" class="text-red-600 font-semibold text-xs">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // --- MONTHLY AUDIT SCHEDULE CONTROLLER ---
+    function updateSchedAuditors() {
+      const auditingSub = document.getElementById('sched-auditing-sub').value;
+      const auditors = getStorage('fa_auditors').filter(a => a.subdept === auditingSub);
+      const sel = document.getElementById('sched-auditor-select');
+      if (auditors.length === 0) {
+        sel.innerHTML = `<option value="">No auditor registered in this sub-section</option>`;
+      } else {
+        sel.innerHTML = auditors.map(a => `<option value="${a.name}">${a.name}</option>`).join('');
+      }
+    }
+
+    function onTargetSubChange() {
+      const targetSub = document.getElementById('sched-target-sub').value;
+      const targetDept = getParentDept(targetSub);
+
+      const allCheckpoints = getStorage('fa_checkpoints');
+      const matched = allCheckpoints.filter(c => c.depts && c.depts.includes(targetDept));
+
+      const container = document.getElementById('sched-checkpoints-list');
+      const weightDisplay = document.getElementById('sched-weight-display');
+
+      if (matched.length === 0) {
+        container.innerHTML = `<p class="text-red-500 italic">No checklist points configured for department: <strong>${targetDept}</strong>. Please add points in Checklist Master.</p>`;
+        weightDisplay.textContent = `Total Weight: 0%`;
+        return;
+      }
+
+      let totalWeight = 0;
+      container.innerHTML = matched.map(c => {
+        totalWeight += parseInt(c.weight || 0);
+        return `
+          <label class="flex items-center space-x-2 bg-slate-50 p-2 rounded border">
+            <input type="checkbox" name="sched-chk-opt" value="${c.id}" checked class="rounded" onchange="calculateSchedWeight()">
+            <span class="text-xs"><strong>[${c.cat}]</strong> ${c.point} <span class="text-blue-600 font-bold">(${c.weight}%)</span></span>
+          </label>
+        `;
+      }).join('');
+
+      weightDisplay.textContent = `Total Weight: ${totalWeight}%`;
+      weightDisplay.className = totalWeight === 100 ? "text-xs font-bold text-emerald-600" : "text-xs font-bold text-amber-600";
+    }
+
+    function calculateSchedWeight() {
+      const allCheckpoints = getStorage('fa_checkpoints');
+      const checkedIds = Array.from(document.querySelectorAll('input[name="sched-chk-opt"]:checked')).map(cb => cb.value);
+      
+      let total = 0;
+      checkedIds.forEach(id => {
+        const found = allCheckpoints.find(c => c.id === id);
+        if (found) total += parseInt(found.weight || 0);
+      });
+
+      const weightDisplay = document.getElementById('sched-weight-display');
+      weightDisplay.textContent = `Total Weight: ${total}%`;
+      weightDisplay.className = total === 100 ? "text-xs font-bold text-emerald-600" : "text-xs font-bold text-amber-600";
+    }
+
+    function createMonthlySchedule(e) {
+      e.preventDefault();
+      const month = document.getElementById('sched-month').value;
+      const targetSub = document.getElementById('sched-target-sub').value;
+      const auditingSub = document.getElementById('sched-auditing-sub').value;
+      const auditor = document.getElementById('sched-auditor-select').value;
+      const editId = document.getElementById('sched-edit-id').value;
+
+      if (!auditor) {
+        alert('Please select an Auditor!');
+        return;
+      }
+
+      const checkedCheckpointIds = Array.from(document.querySelectorAll('input[name="sched-chk-opt"]:checked')).map(cb => cb.value);
+      if (checkedCheckpointIds.length === 0) {
+        alert('Please select at least one checkpoint for this audit schedule!');
+        return;
+      }
+
+      const schedules = getStorage('fa_schedules');
+
+      if (editId) {
+        const idx = schedules.findIndex(s => s.id === editId);
+        if (idx === -1) {
+          alert('This schedule no longer exists — it may have already been started or removed.');
+          cancelScheduleEdit();
+          renderMonthlyScheduleTab();
+          return;
+        }
+        schedules[idx] = { ...schedules[idx], month, targetSub, auditingSub, auditor, checkpoints: checkedCheckpointIds };
+        setStorage('fa_schedules', schedules);
+        alert('Monthly Audit Schedule updated successfully!');
+        cancelScheduleEdit();
+      } else {
+        schedules.push({
+          id: Date.now().toString(),
+          month,
+          targetSub,
+          auditingSub,
+          auditor,
+          checkpoints: checkedCheckpointIds,
+          status: 'Scheduled'
+        });
+        setStorage('fa_schedules', schedules);
+        alert('Monthly Audit Schedule saved successfully!');
+      }
+
+      renderMonthlyScheduleTab();
+    }
+
+    function editSchedule(id) {
+      const schedule = getStorage('fa_schedules').find(s => s.id === id);
+      if (!schedule) return;
+      if (schedule.status !== 'Scheduled') {
+        alert('Only schedules that are still "Scheduled" (not yet started by the auditor) can be edited.');
+        return;
+      }
+
+      document.getElementById('sched-edit-id').value = schedule.id;
+      document.getElementById('sched-month').value = schedule.month;
+      document.getElementById('sched-target-sub').value = schedule.targetSub;
+      onTargetSubChange();
+      document.getElementById('sched-auditing-sub').value = schedule.auditingSub;
+      updateSchedAuditors();
+      document.getElementById('sched-auditor-select').value = schedule.auditor;
+
+      document.querySelectorAll('input[name="sched-chk-opt"]').forEach(cb => {
+        cb.checked = schedule.checkpoints.includes(cb.value);
+      });
+      calculateSchedWeight();
+
+      document.getElementById('sched-submit-btn').textContent = 'Update Monthly Audit Schedule';
+      document.getElementById('sched-submit-btn').className = 'flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2 rounded font-semibold text-sm transition';
+      document.getElementById('sched-cancel-btn').classList.remove('hidden');
+
+      document.getElementById('tab-monthly-schedule').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelScheduleEdit() {
+      document.getElementById('sched-edit-id').value = '';
+      document.getElementById('sched-submit-btn').textContent = 'Save Monthly Audit Schedule';
+      document.getElementById('sched-submit-btn').className = 'flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded font-semibold text-sm transition';
+      document.getElementById('sched-cancel-btn').classList.add('hidden');
+    }
+
+    function deleteSchedule(id) {
+      const schedules = getStorage('fa_schedules');
+      const schedule = schedules.find(s => s.id === id);
+      if (!schedule) return;
+
+      if (schedule.status === 'Completed') {
+        alert('Completed audit schedules cannot be deleted — they are part of the audit record.');
+        return;
+      }
+
+      let msg = `Delete this ${schedule.status.toLowerCase()} schedule for "${schedule.targetSub}" (${schedule.month})?`;
+      if (schedule.status === 'Submitted') {
+        msg += '\n\nThis audit has already been submitted and is awaiting admin review — deleting the schedule will also remove that pending submission.';
+      }
+      if (!confirm(msg)) return;
+
+      setStorage('fa_schedules', schedules.filter(s => s.id !== id));
+
+      if (schedule.status === 'Submitted') {
+        const audits = getStorage('fa_audits').filter(a => a.scheduleId !== id);
+        setStorage('fa_audits', audits);
+        updateNotificationBadge();
+      }
+
+      if (document.getElementById('sched-edit-id').value === id) cancelScheduleEdit();
+      renderMonthlyScheduleTab();
+    }
+
+    function scheduleStatusBadge(status) {
+      const map = {
+        'Scheduled': 'bg-slate-200 text-slate-700',
+        'Submitted': 'bg-amber-100 text-amber-700',
+        'Completed': 'bg-emerald-100 text-emerald-700'
+      };
+      return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${map[status] || 'bg-gray-100 text-gray-600'}">${status}</span>`;
+    }
+
+    function populateScheduleFilters() {
+      const schedules = getStorage('fa_schedules');
+      const distinct = (arr) => [...new Set(arr)].sort();
+
+      const fillSelect = (id, values, current) => {
+        const el = document.getElementById(id);
+        const placeholder = el.options[0];
+        el.innerHTML = '';
+        el.appendChild(placeholder);
+        values.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = v;
+          el.appendChild(opt);
+        });
+        if (current && values.includes(current)) el.value = current;
+      };
+
+      fillSelect('filter-sched-month', distinct(schedules.map(s => s.month)), document.getElementById('filter-sched-month').value);
+      fillSelect('filter-sched-target', distinct(schedules.map(s => s.targetSub)), document.getElementById('filter-sched-target').value);
+      fillSelect('filter-sched-auditing', distinct(schedules.map(s => s.auditingSub)), document.getElementById('filter-sched-auditing').value);
+      fillSelect('filter-sched-auditor', distinct(schedules.map(s => s.auditor)), document.getElementById('filter-sched-auditor').value);
+    }
+
+    function clearScheduleFilters() {
+      ['filter-sched-month', 'filter-sched-target', 'filter-sched-auditing', 'filter-sched-auditor'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+      renderScheduleHistory();
+    }
+
+    function renderScheduleHistory() {
+      const monthF = document.getElementById('filter-sched-month').value;
+      const targetF = document.getElementById('filter-sched-target').value;
+      const auditingF = document.getElementById('filter-sched-auditing').value;
+      const auditorF = document.getElementById('filter-sched-auditor').value;
+
+      let schedules = getStorage('fa_schedules');
+      if (monthF) schedules = schedules.filter(s => s.month === monthF);
+      if (targetF) schedules = schedules.filter(s => s.targetSub === targetF);
+      if (auditingF) schedules = schedules.filter(s => s.auditingSub === auditingF);
+      if (auditorF) schedules = schedules.filter(s => s.auditor === auditorF);
+
+      schedules = schedules.slice().sort((a, b) => (b.month || '').localeCompare(a.month || '') || (b.id - a.id));
+
+      const tbl = document.getElementById('sched-history-tbl');
+      if (schedules.length === 0) {
+        tbl.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500 italic">No audit schedules match these filters.</td></tr>`;
+        return;
+      }
+
+      tbl.innerHTML = schedules.map(s => {
+        const canEdit = s.status === 'Scheduled';
+        const canDelete = s.status !== 'Completed';
+        return `
+        <tr>
+          <td class="p-2 border font-medium">${s.month}</td>
+          <td class="p-2 border">${s.targetSub}</td>
+          <td class="p-2 border">${s.auditingSub}</td>
+          <td class="p-2 border">${s.auditor}</td>
+          <td class="p-2 border text-center">${(s.checkpoints || []).length}</td>
+          <td class="p-2 border">${scheduleStatusBadge(s.status)}${s.returnReason ? `<div class="text-[10px] text-red-600 mt-1 italic">Returned — awaiting redo</div>` : ''}</td>
+          <td class="p-2 border space-x-2 whitespace-nowrap">
+            ${canEdit ? `<button onclick="editSchedule('${s.id}')" class="text-blue-600 font-semibold">Edit</button>` : `<span class="text-gray-300">Edit</span>`}
+            ${canDelete ? `<button onclick="deleteSchedule('${s.id}')" class="text-red-600 font-semibold">Delete</button>` : `<span class="text-gray-300">Delete</span>`}
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderMonthlyScheduleTab() {
+      onTargetSubChange();
+      populateScheduleFilters();
+      renderScheduleHistory();
+    }
+
+    // --- AUDITOR EXECUTION CONTROLLER ---
+    function renderAuditorPending() {
+      const schedules = getStorage('fa_schedules').filter(s => s.auditor === currentUser.name && s.status === 'Scheduled');
+      const container = document.getElementById('auditor-pending-list');
+
+      if (schedules.length === 0) {
+        container.innerHTML = `<p class="text-sm text-gray-500 italic">No pending audit schedules assigned to you.</p>`;
+        return;
+      }
+
+      container.innerHTML = schedules.map(s => `
+        <div class="border rounded-lg p-4 bg-slate-50 ${s.returnReason ? 'border-red-300' : ''}">
+          ${s.returnReason ? `
+            <div class="bg-red-50 border border-red-200 text-red-700 text-xs rounded p-2 mb-3">
+              <strong>Returned by admin — please redo:</strong> ${s.returnReason}
+            </div>
+          ` : ''}
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-xs font-semibold text-emerald-600 uppercase">Monthly Audit | ${s.month}</div>
+              <h4 class="font-bold text-slate-800 text-base">Target Sub-Section: ${s.targetSub}</h4>
+              <div class="text-xs text-gray-600 mt-1">Checkpoints Included: <strong>${s.checkpoints.length}</strong></div>
+            </div>
+            <button onclick="startExecution('${s.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded font-semibold">${s.returnReason ? 'Redo Inspection' : 'Start Inspection'}</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function startExecution(scheduleId) {
+      const schedule = getStorage('fa_schedules').find(s => s.id === scheduleId);
+      if (!schedule) return;
+
+      document.getElementById('exec-schedule-id').value = schedule.id;
+      document.getElementById('exec-title').textContent = `Target Sub-Section: ${schedule.targetSub}`;
+      document.getElementById('exec-subtitle').textContent = `Auditor: ${schedule.auditor} | Schedule Month: ${schedule.month} | Audit Date: ${new Date().toISOString().split('T')[0]}`;
+
+      const allCheckpoints = getStorage('fa_checkpoints');
+      const assignedCheckpoints = allCheckpoints.filter(c => schedule.checkpoints.includes(c.id));
+
+      const container = document.getElementById('exec-checkpoints-container');
+      container.innerHTML = assignedCheckpoints.map((c, index) => `
+        <div class="border rounded-lg p-4 bg-gray-50 space-y-3">
+          <div class="flex justify-between items-center border-b pb-2">
+            <span class="font-bold text-sm text-slate-800">#${index + 1} [${c.cat}] ${c.point}</span>
+            <span class="text-xs font-bold text-blue-600">Weight: ${c.weight}%</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">Score Rating (0 to 5)</label>
+              <select name="score-${c.id}" class="w-full border rounded px-2 py-1.5 text-sm bg-white" required>
+                <option value="5">5 - Excellent / Compliant</option>
+                <option value="4">4 - Good</option>
+                <option value="3">3 - Satisfactory</option>
+                <option value="2">2 - Marginal</option>
+                <option value="1">1 - Poor</option>
+                <option value="0">0 - Non-Compliant</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">Severity Level</label>
+              <select name="severity-${c.id}" class="w-full border rounded px-2 py-1.5 text-sm bg-white" required>
+                <option value="OK">OK / Compliant</option>
+                <option value="Minor">Minor Finding</option>
+                <option value="Major">Major Finding</option>
+                <option value="Critical">Critical Finding</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Observations & Finding Notes</label>
+            <textarea name="notes-${c.id}" rows="2" class="w-full border rounded p-2 text-xs" placeholder="Add specific observation notes..."></textarea>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Upload Photo Evidence</label>
+            <input type="file" accept="image/*" onchange="handleImageUpload(event, '${c.id}')" class="text-xs">
+            <input type="hidden" id="photo-data-${c.id}">
+            <div id="photo-preview-${c.id}" class="mt-2"></div>
+          </div>
+        </div>
+      `).join('');
+
+      showTab('auditor-exec');
+    }
+
+    function handleImageUpload(e, checkpointId) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const maxDim = 600;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxDim) { height *= maxDim / width; width = maxDim; }
+          } else {
+            if (height > maxDim) { width *= maxDim / height; height = maxDim; }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          document.getElementById(`photo-data-${checkpointId}`).value = compressedDataUrl;
+          document.getElementById(`photo-preview-${checkpointId}`).innerHTML = `
+            <img src="${compressedDataUrl}" class="h-20 w-20 object-cover rounded border">
+          `;
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function submitAuditExecution(e) {
+      e.preventDefault();
+      const scheduleId = document.getElementById('exec-schedule-id').value;
+      const schedules = getStorage('fa_schedules');
+      const schedule = schedules.find(s => s.id === scheduleId);
+
+      const allCheckpoints = getStorage('fa_checkpoints');
+      const assignedCheckpoints = allCheckpoints.filter(c => schedule.checkpoints.includes(c.id));
+
+      let totalWeightedScore = 0;
+      let totalPossibleWeight = 0;
+      let results = [];
+
+      assignedCheckpoints.forEach(c => {
+        const score = parseInt(document.querySelector(`[name="score-${c.id}"]`).value);
+        const severity = document.querySelector(`[name="severity-${c.id}"]`).value;
+        const notes = document.querySelector(`[name="notes-${c.id}"]`).value;
+        const photo = document.getElementById(`photo-data-${c.id}`).value;
+
+        const weight = parseInt(c.weight);
+        totalPossibleWeight += weight;
+        totalWeightedScore += (score / 5) * weight;
+
+        results.push({
+          checkpointId: c.id,
+          cat: c.cat,
+          point: c.point,
+          weight,
+          score,
+          severity,
+          notes,
+          photo
+        });
+      });
+
+      const overallPercentage = totalPossibleWeight > 0 ? Math.round((totalWeightedScore / totalPossibleWeight) * 100) : 0;
+
+      const newAudit = {
+        id: Date.now().toString(),
+        scheduleId,
+        month: schedule.month,
+        auditingSub: schedule.auditingSub,
+        targetSub: schedule.targetSub,
+        auditor: schedule.auditor,
+        auditDate: new Date().toISOString().split('T')[0],
+        overallPercentage,
+        results,
+        reviewStatus: 'Pending Review',
+        adminComment: ''
+      };
+
+      const audits = getStorage('fa_audits');
+      audits.push(newAudit);
+      setStorage('fa_audits', audits);
+
+      schedule.status = 'Submitted';
+      delete schedule.returnReason;
+      setStorage('fa_schedules', schedules);
+
+      alert(`Audit submitted for admin review! Overall Weighted Score: ${overallPercentage}%\n\nThis will appear on the dashboard once the admin approves it.`);
+      showTab('auditor-pending');
+    }
+
+    // --- ADMIN REVIEW / APPROVAL CONTROLLER ---
+    const isApproved = (a) => a.reviewStatus === 'Approved' || !a.reviewStatus;
+
+    function renderPendingReviews() {
+      const pending = getStorage('fa_audits').filter(a => a.reviewStatus === 'Pending Review');
+      document.getElementById('pending-review-count').textContent = pending.length;
+
+      const tbl = document.getElementById('pending-review-tbl');
+      if (pending.length === 0) {
+        tbl.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500 italic">No audits waiting for review.</td></tr>`;
+        return;
+      }
+
+      tbl.innerHTML = pending.map(a => `
+        <tr>
+          <td class="p-3 font-bold text-slate-700">${a.month}</td>
+          <td class="p-3 font-semibold text-slate-800">${a.targetSub}</td>
+          <td class="p-3">${a.auditor}</td>
+          <td class="p-3 font-bold text-blue-600">${a.overallPercentage}%</td>
+          <td class="p-3 space-x-2 whitespace-nowrap">
+            <button onclick="viewAuditDetails('${a.id}')" class="text-xs bg-slate-200 hover:bg-slate-300 px-2 py-1 rounded">View</button>
+            <button onclick="approveAudit('${a.id}')" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded font-semibold">Approve</button>
+            <button onclick="returnAuditPrompt('${a.id}')" class="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded font-semibold">Return</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function approveAudit(auditId) {
+      const audits = getStorage('fa_audits');
+      const audit = audits.find(a => a.id === auditId);
+      if (!audit) return;
+
+      audit.reviewStatus = 'Approved';
+      audit.adminComment = '';
+      setStorage('fa_audits', audits);
+
+      const schedules = getStorage('fa_schedules');
+      const schedule = schedules.find(s => s.id === audit.scheduleId);
+      if (schedule) {
+        schedule.status = 'Completed';
+        setStorage('fa_schedules', schedules);
+      }
+
+      updateNotificationBadge();
+      renderPendingReviews();
+      renderCompletedAuditsTable();
+      populateDashboardFilterDropdowns();
+      renderDashboard();
+      renderMonthlyScheduleTab();
+    }
+
+    function returnAuditPrompt(auditId) {
+      const reason = prompt('Reason for returning this audit to the auditor (required):', '');
+      if (reason === null) return;
+      if (!reason.trim()) {
+        alert('Please provide a reason so the auditor knows what to fix.');
+        return;
+      }
+      returnAudit(auditId, reason.trim());
+    }
+
+    function returnAudit(auditId, reason) {
+      const audits = getStorage('fa_audits');
+      const audit = audits.find(a => a.id === auditId);
+      if (!audit) return;
+
+      audit.reviewStatus = 'Returned';
+      audit.adminComment = reason;
+      setStorage('fa_audits', audits);
+
+      const schedules = getStorage('fa_schedules');
+      const schedule = schedules.find(s => s.id === audit.scheduleId);
+      if (schedule) {
+        schedule.status = 'Scheduled';
+        schedule.returnReason = reason;
+        setStorage('fa_schedules', schedules);
+      }
+
+      updateNotificationBadge();
+      renderPendingReviews();
+      renderCompletedAuditsTable();
+      populateDashboardFilterDropdowns();
+      renderDashboard();
+      renderMonthlyScheduleTab();
+    }
+
+    function renderCompletedAuditsTable() {
+      const audits = getStorage('fa_audits').filter(isApproved);
+      document.getElementById('completed-audits-tbl').innerHTML = audits.map(a => `
+        <tr>
+          <td class="p-3 font-bold text-slate-700">${a.month}</td>
+          <td class="p-3 font-medium">${a.auditDate}</td>
+          <td class="p-3">${a.auditingSub}</td>
+          <td class="p-3 font-semibold text-slate-800">${a.targetSub}</td>
+          <td class="p-3">${a.auditor}</td>
+          <td class="p-3 font-bold text-blue-600">${a.overallPercentage}%</td>
+          <td class="p-3"><button onclick="viewAuditDetails('${a.id}')" class="text-xs bg-slate-200 hover:bg-slate-300 px-2 py-1 rounded">View</button></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderAuditorHistory() {
+      const audits = getStorage('fa_audits').filter(a => a.auditor === currentUser.name);
+      const container = document.getElementById('auditor-history-list');
+
+      if (audits.length === 0) {
+        container.innerHTML = `<p class="text-sm text-gray-500 italic">No historical audits submitted yet.</p>`;
+        return;
+      }
+
+      const statusBadge = (a) => {
+        const status = a.reviewStatus || 'Approved';
+        const cls = status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
+                    status === 'Returned' ? 'bg-red-100 text-red-800' :
+                    'bg-amber-100 text-amber-800';
+        return `<span class="px-2 py-0.5 text-[10px] rounded font-bold ${cls}">${status}</span>`;
+      };
+
+      container.innerHTML = audits.map(a => `
+        <div class="border rounded p-3 bg-white text-sm">
+          <div class="flex justify-between items-center">
+            <div>
+              <span class="font-bold text-slate-800">${a.targetSub}</span>
+              <span class="text-xs text-gray-500 ml-2">(${a.month} | Submitted: ${a.auditDate})</span>
+            </div>
+            <div class="flex items-center space-x-3">
+              ${statusBadge(a)}
+              <span class="font-bold text-blue-600">${a.overallPercentage}% Score</span>
+              <button onclick="viewAuditDetails('${a.id}')" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">View Details</button>
+            </div>
+          </div>
+          ${a.reviewStatus === 'Returned' && a.adminComment ? `<div class="mt-2 text-xs text-red-600 italic">Admin note: ${a.adminComment}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    // --- DASHBOARD INTERACTIVE SLICERS & ANALYTICS CONTROLLER ---
+    let barChartInstance = null;
+    let doughnutChartInstance = null;
+    let lineChartInstance = null;
+
+    // Helper: Determine Quarter from Month (YYYY-MM)
+    function getQuarterFromMonthStr(monthStr) {
+      if (!monthStr || !monthStr.includes('-')) return '';
+      const monthNum = parseInt(monthStr.split('-')[1]);
+      if (monthNum >= 1 && monthNum <= 3) return 'Q1';
+      if (monthNum >= 4 && monthNum <= 6) return 'Q2';
+      if (monthNum >= 7 && monthNum <= 9) return 'Q3';
+      if (monthNum >= 10 && monthNum <= 12) return 'Q4';
+      return '';
+    }
+
+    // Populate Dynamic Options in Slicer Dropdowns
+    function populateDashboardFilterDropdowns() {
+      const allAudits = getStorage('fa_audits');
+      const registeredAuditors = getStorage('fa_auditors');
+      const schedules = getStorage('fa_schedules');
+
+      // 1. Target Sub-Sections from Master DEPARTMENTS
+      let allSubs = [];
+      Object.values(DEPARTMENTS).forEach(arr => allSubs = allSubs.concat(arr));
+      const uniqueSubs = [...new Set(allSubs)].sort();
+      
+      const targetSelect = document.getElementById('dash-filter-target');
+      const curTarget = targetSelect.value;
+      targetSelect.innerHTML = `<option value="all">All Sub-Sections</option>` + 
+        uniqueSubs.map(t => `<option value="${t}">${t}</option>`).join('');
+      if (uniqueSubs.includes(curTarget)) targetSelect.value = curTarget;
+
+      // 2. Years from Current Year + All Schedules + All Audits
+      const currentYear = new Date().getFullYear().toString();
+      const auditYears = allAudits.map(a => a.month ? a.month.split('-')[0] : '').filter(Boolean);
+      const schedYears = schedules.map(s => s.month ? s.month.split('-')[0] : '').filter(Boolean);
+      const uniqueYears = [...new Set([currentYear, ...auditYears, ...schedYears])].sort().reverse();
+
+      const yearSelect = document.getElementById('dash-filter-year');
+      const curYear = yearSelect.value;
+      yearSelect.innerHTML = `<option value="all">All Years</option>` + 
+        uniqueYears.map(y => `<option value="${y}">${y}</option>`).join('');
+      if (uniqueYears.includes(curYear)) yearSelect.value = curYear;
+
+      // 3. Months from Schedules and Audits (Plus Full Year 12-Month Fallback)
+      const auditMonthsSet = new Set([
+        ...allAudits.map(a => a.month),
+        ...schedules.map(s => s.month)
+      ]);
+      
+      // Ensure all 12 months for the selected or current year are available
+      const activeYear = (curYear && curYear !== 'all') ? curYear : currentYear;
+      for (let m = 1; m <= 12; m++) {
+        const monthPad = String(m).padStart(2, '0');
+        auditMonthsSet.add(`${activeYear}-${monthPad}`);
+      }
+
+      const auditMonths = [...auditMonthsSet].filter(Boolean).sort().reverse();
+
+      const monthSelect = document.getElementById('dash-filter-month');
+      const curMonth = monthSelect.value;
+      monthSelect.innerHTML = `<option value="all">All Months</option>` + 
+        auditMonths.map(m => `<option value="${m}">${m}</option>`).join('');
+      if (auditMonths.includes(curMonth)) monthSelect.value = curMonth;
+
+      // 4. Auditors from Master Directory + All Audits
+      const auditorNames = [...new Set([
+        ...registeredAuditors.map(a => a.name),
+        ...allAudits.map(a => a.auditor)
+      ])].filter(Boolean).sort();
+
+      const auditorSelect = document.getElementById('dash-filter-auditor');
+      const curAuditor = auditorSelect.value;
+      auditorSelect.innerHTML = `<option value="all">All Auditors</option>` + 
+        auditorNames.map(a => `<option value="${a}">${a}</option>`).join('');
+      if (auditorNames.includes(curAuditor)) auditorSelect.value = curAuditor;
+    }
+
+    // Filter audits based on active slicer controls
+    function getFilteredAudits() {
+      const allAudits = getStorage('fa_audits');
+      const approvedAudits = allAudits.filter(isApproved);
+
+      const targetFilter = document.getElementById('dash-filter-target').value;
+      const yearFilter = document.getElementById('dash-filter-year').value;
+      const qtrFilter = document.getElementById('dash-filter-qtr').value;
+      const monthFilter = document.getElementById('dash-filter-month').value;
+      const auditorFilter = document.getElementById('dash-filter-auditor').value;
+
+      return approvedAudits.filter(a => {
+        if (targetFilter !== 'all' && a.targetSub !== targetFilter) return false;
+        
+        const aYear = a.month ? a.month.split('-')[0] : '';
+        if (yearFilter !== 'all' && aYear !== yearFilter) return false;
+
+        const aQtr = getQuarterFromMonthStr(a.month);
+        if (qtrFilter !== 'all' && aQtr !== qtrFilter) return false;
+
+        if (monthFilter !== 'all' && a.month !== monthFilter) return false;
+
+        if (auditorFilter !== 'all' && a.auditor !== auditorFilter) return false;
+
+        return true;
+      });
+    }
+
+    function applyDashboardFilters() {
+      const targetFilter = document.getElementById('dash-filter-target').value;
+      const yearFilter = document.getElementById('dash-filter-year').value;
+      const qtrFilter = document.getElementById('dash-filter-qtr').value;
+      const monthFilter = document.getElementById('dash-filter-month').value;
+      const auditorFilter = document.getElementById('dash-filter-auditor').value;
+
+      const isFiltered = (targetFilter !== 'all' || yearFilter !== 'all' || qtrFilter !== 'all' || monthFilter !== 'all' || auditorFilter !== 'all' || selectedSeverityFilter !== 'all');
+      
+      const indicator = document.getElementById('active-filter-indicator');
+      if (isFiltered) {
+        indicator.classList.remove('hidden');
+      } else {
+        indicator.classList.add('hidden');
+      }
+
+      renderDashboard();
+    }
+
+    function resetDashboardFilters() {
+      document.getElementById('dash-filter-target').value = 'all';
+      document.getElementById('dash-filter-year').value = 'all';
+      document.getElementById('dash-filter-qtr').value = 'all';
+      document.getElementById('dash-filter-month').value = 'all';
+      document.getElementById('dash-filter-auditor').value = 'all';
+      selectedSeverityFilter = 'all';
+      
+      document.getElementById('active-filter-indicator').classList.add('hidden');
+      renderDashboard();
+    }
+
+    function renderDashboard() {
+      const filteredAudits = getFilteredAudits();
+      const allAudits = getStorage('fa_audits');
+
+      // Summary Card Updates
+      document.getElementById('dash-total-approved').textContent = filteredAudits.length;
+      
+      const totalScoreSum = filteredAudits.reduce((acc, curr) => acc + curr.overallPercentage, 0);
+      const avgScore = filteredAudits.length > 0 ? Math.round(totalScoreSum / filteredAudits.length) : 0;
+      document.getElementById('dash-avg-score').textContent = `${avgScore}%`;
+
+      const pendingCount = allAudits.filter(a => a.reviewStatus === 'Pending Review').length;
+      document.getElementById('dash-pending-count').textContent = pendingCount;
+
+      let criticalCount = 0;
+      filteredAudits.forEach(a => {
+        a.results.forEach(r => {
+          if (r.severity === 'Critical') criticalCount++;
+        });
+      });
+      document.getElementById('dash-critical-count').textContent = criticalCount;
+
+      // Render Interactive Charts with Filtered Data
+      renderBarChart(filteredAudits);
+      renderDoughnutChart(filteredAudits);
+      renderLineChart(filteredAudits);
+    }
+
+    function renderBarChart(audits) {
+      const canvas = document.getElementById('barScoreChart');
+      const ctx = canvas.getContext('2d');
+      if (barChartInstance) barChartInstance.destroy();
+
+      const subScores = {};
+      audits.forEach(a => {
+        if (!subScores[a.targetSub]) subScores[a.targetSub] = [];
+        subScores[a.targetSub].push(a.overallPercentage);
+      });
+
+      const labels = Object.keys(subScores);
+      const data = labels.map(l => {
+        const arr = subScores[l];
+        return Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+      });
+
+      barChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels.length ? labels : ['No Data'],
+          datasets: [{
+            label: 'Avg Score %',
+            data: data.length ? data : [0],
+            backgroundColor: '#3b82f6',
+            hoverBackgroundColor: '#1d4ed8'
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: { y: { min: 0, max: 100 } },
+          onClick: (evt, activeElements) => {
+            if (activeElements.length > 0) {
+              const index = activeElements[0].index;
+              const clickedSub = labels[index];
+              if (clickedSub && clickedSub !== 'No Data') {
+                const targetSelect = document.getElementById('dash-filter-target');
+                targetSelect.value = (targetSelect.value === clickedSub) ? 'all' : clickedSub;
+                applyDashboardFilters();
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderDoughnutChart(audits) {
+      const canvas = document.getElementById('doughnutSeverityChart');
+      const ctx = canvas.getContext('2d');
+      if (doughnutChartInstance) doughnutChartInstance.destroy();
+
+      const counts = { OK: 0, Minor: 0, Major: 0, Critical: 0 };
+      audits.forEach(a => {
+        a.results.forEach(r => {
+          if (counts[r.severity] !== undefined) counts[r.severity]++;
+        });
+      });
+
+      const labels = ['OK', 'Minor', 'Major', 'Critical'];
+      const data = [counts.OK, counts.Minor, counts.Major, counts.Critical];
+
+      doughnutChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: ['#10b981', '#f59e0b', '#f97316', '#ef4444']
+          }]
+        },
+        options: {
+          responsive: true,
+          onClick: (evt, activeElements) => {
+            if (activeElements.length > 0) {
+              const index = activeElements[0].index;
+              const clickedSeverity = labels[index];
+              selectedSeverityFilter = (selectedSeverityFilter === clickedSeverity) ? 'all' : clickedSeverity;
+              applyDashboardFilters();
+            }
+          }
+        }
+      });
+    }
+
+    function renderLineChart(audits) {
+      const canvas = document.getElementById('lineTrendChart');
+      const ctx = canvas.getContext('2d');
+      if (lineChartInstance) lineChartInstance.destroy();
+
+      const sorted = [...audits].sort((a, b) => new Date(a.auditDate) - new Date(b.auditDate));
+      const labels = sorted.map(s => `${s.targetSub} (${s.month})`);
+      const data = sorted.map(s => s.overallPercentage);
+
+      lineChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels.length ? labels : ['No Data'],
+          datasets: [{
+            label: 'Score %',
+            data: data.length ? data : [0],
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            fill: true,
+            tension: 0.2
+          }]
+        },
+        options: { responsive: true, scales: { y: { min: 0, max: 100 } } }
+      });
+    }
+
+    // --- FINDINGS LOG (CAPA) CONTROLLER ---
+    function renderFindingsLog() {
+      const audits = getStorage('fa_audits').filter(isApproved);
+      const tbl = document.getElementById('findings-tbl');
+      let rows = [];
+
+      audits.forEach(a => {
+        a.results.forEach(r => {
+          if (r.severity === 'Major' || r.severity === 'Critical') {
+            const findingKey = `${a.id}_${r.checkpointId}`;
+            const capaData = JSON.parse(localStorage.getItem(`capa_${findingKey}`) || '{}');
+
+            rows.push(`
+              <tr>
+                <td class="p-2 border font-medium">${a.targetSub}</td>
+                <td class="p-2 border">${a.auditor}</td>
+                <td class="p-2 border">
+                  <strong>[${r.cat}] ${r.point}</strong>
+                  <div class="text-gray-500">${r.notes || 'No notes provided'}</div>
+                </td>
+                <td class="p-2 border">
+                  <span class="px-2 py-0.5 text-white rounded text-xs font-bold ${r.severity === 'Critical' ? 'bg-red-600' : 'bg-orange-500'}">
+                    ${r.severity}
+                  </span>
+                </td>
+                <td class="p-2 border">
+                  ${r.photo ? `<img src="${r.photo}" class="h-10 w-10 object-cover rounded border">` : 'None'}
+                </td>
+                <td class="p-2 border">
+                  <input type="text" value="${capaData.owner || ''}" onchange="saveCapa('${findingKey}', 'owner', this.value)" placeholder="Owner" class="border rounded px-1.5 py-1 w-full text-xs">
+                </td>
+                <td class="p-2 border">
+                  <input type="date" value="${capaData.dueDate || ''}" onchange="saveCapa('${findingKey}', 'dueDate', this.value)" class="border rounded px-1.5 py-1 w-full text-xs">
+                </td>
+                <td class="p-2 border">
+                  <select onchange="saveCapa('${findingKey}', 'status', this.value)" class="border rounded px-1.5 py-1 w-full text-xs bg-white">
+                    <option value="Open" ${capaData.status === 'Open' ? 'selected' : ''}>Open</option>
+                    <option value="In Progress" ${capaData.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                    <option value="Closed" ${capaData.status === 'Closed' ? 'selected' : ''}>Closed</option>
+                    <option value="Overdue" ${capaData.status === 'Overdue' ? 'selected' : ''}>Overdue</option>
+                  </select>
+                </td>
+                <td class="p-2 border text-center">
+                  <span class="text-xs text-emerald-600 font-bold">Saved</span>
+                </td>
+              </tr>
+            `);
+          }
+        });
+      });
+
+      tbl.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="9" class="p-4 text-center text-gray-500 italic">No Major or Critical findings recorded.</td></tr>`;
+    }
+
+    function saveCapa(key, field, value) {
+      const current = JSON.parse(localStorage.getItem(`capa_${key}`) || '{}');
+      current[field] = value;
+      localStorage.setItem(`capa_${key}`, JSON.stringify(current));
+    }
+
+    // --- MODAL CONTROLLER ---
+    function viewAuditDetails(auditId) {
+      const audit = getStorage('fa_audits').find(a => a.id === auditId);
+      if (!audit) return;
+
+      document.getElementById('modal-title').textContent = `Audit Details: ${audit.targetSub} (${audit.month})`;
+      
+      const content = document.getElementById('modal-content');
+      content.innerHTML = `
+        <div class="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded border text-xs">
+          <div><strong>Schedule Month:</strong> ${audit.month}</div>
+          <div><strong>Completion Date:</strong> ${audit.auditDate}</div>
+          <div><strong>Auditing Sub-Section:</strong> ${audit.auditingSub}</div>
+          <div><strong>Target Sub-Section:</strong> ${audit.targetSub}</div>
+          <div><strong>Auditor:</strong> ${audit.auditor}</div>
+          <div><strong>Overall Weighted Score:</strong> <span class="font-bold text-blue-600">${audit.overallPercentage}%</span></div>
+          <div><strong>Review Status:</strong> <span class="font-bold">${audit.reviewStatus || 'Approved'}</span></div>
+        </div>
+        ${audit.reviewStatus === 'Returned' && audit.adminComment ? `<div class="bg-red-50 border border-red-200 text-red-700 text-xs rounded p-2 mt-3"><strong>Admin return note:</strong> ${audit.adminComment}</div>` : ''}
+
+        <div class="space-y-3 mt-4">
+          <h4 class="font-bold text-slate-800 text-sm border-b pb-1">Checklist Inspection Results</h4>
+          ${audit.results.map(r => `
+            <div class="border rounded p-3 text-xs space-y-1">
+              <div class="flex justify-between font-bold text-slate-800">
+                <span>[${r.cat}] ${r.point}</span>
+                <span>Score: ${r.score}/5 | Severity: ${r.severity}</span>
+              </div>
+              <p class="text-gray-600"><strong>Notes:</strong> ${r.notes || 'N/A'}</p>
+              ${r.photo ? `<div class="mt-2"><img src="${r.photo}" class="h-24 w-24 object-cover rounded border"></div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      document.getElementById('detail-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('detail-modal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
